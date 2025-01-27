@@ -1,0 +1,25 @@
+<form action="{{ route('invite') }}" method="POST">
+    @csrf
+    <input type="email" name="email" placeholder="招待するメールアドレス">
+    <button type="submit">招待</button>
+</form>
+
+
+
+  <form method="POST" action="{{ route('register') }}">
+    @csrf
+    <input type="hidden" name="token" value="{{ $token }}">
+    <div>
+        <label>Email:</label>
+        <input type="email" name="email" value="{{ $email }}" readonly>
+    </div>
+    <div>
+        <label>パスワード:</label>
+        <input type="password" name="password">
+    </div>
+    <div>
+        <label>パスワード確認:</label>
+        <input type="password" name="password_confirmation">
+    </div>
+    <button type="submit">登録</button>
+</form>
