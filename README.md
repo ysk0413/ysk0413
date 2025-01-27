@@ -1,93 +1,203 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理者ダッシュボード</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/alpinejs" defer></script>
-</head>
-<body class="bg-gray-100 font-sans leading-relaxed text-black">
+自治会DXアプリにおいて、管理者アカウントを「メールアドレスによる招待制」にする方法を、Laravelをベースに解説します。
 
-    <div x-data="{ open: false }" class="flex">
-        <!-- サイドバー -->
-        <aside :class="open ? 'w-72' : 'w-24'" class="h-screen bg-blue-600 text-white flex flex-col transition-all duration-300 shadow-md">
-            <div class="flex items-center justify-between p-6">
-                <span class="text-2xl font-bold" x-show="open">管理メニュー</span>
-                <button @click="open = !open">
-                    <svg x-show="!open" class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M4 6h16M4 12h16M4 18h16"></path>
-                    </svg>
-                    <svg x-show="open" class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            <nav class="flex-1 text-lg">
-                <a href="#" class="block py-4 px-6 hover:bg-blue-500 flex items-center">
-                    <span class="material-icons mr-4">home</span> ダッシュボード
-                </a>
-                <a href="#" class="block py-4 px-6 hover:bg-blue-500 flex items-center">
-                    <span class="material-icons mr-4">group</span> 会員管理
-                </a>
-                <a href="#" class="block py-4 px-6 hover:bg-blue-500 flex items-center">
-                    <span class="material-icons mr-4">announcement</span> 回覧板管理
-                </a>
-                <a href="#" class="block py-4 px-6 hover:bg-blue-500 flex items-center">
-                    <span class="material-icons mr-4">payment</span> 会費管理
-                </a>
-            </nav>
-        </aside>
+1. 招待機能の概要
 
-        <!-- メインコンテンツ -->
-        <main class="flex-1 p-8">
-            <h1 class="text-4xl font-bold mb-6">管理者ダッシュボード</h1>
+管理者（users テーブル）のアカウント作成を、管理者からの招待メールを受け取ったユーザーのみが行えるようにします。具体的な流れは以下の通りです：
+	1.	既存の管理者が新しい管理者を招待
+	•	メールアドレスを入力し、招待メールを送信
+	•	招待のトークンを生成しデータベースに保存
+	2.	招待を受けたユーザーがリンクから登録
+	•	招待メールのリンクを開く
+	•	トークンを確認し、有効であればパスワードを設定しアカウント作成
 
-            <!-- KPIカード -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="bg-white p-8 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-gray-700">登録会員数</h2>
-                    <p class="text-5xl font-bold text-blue-600 mt-4">1,234</p>
-                </div>
-                <div class="bg-white p-8 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-gray-700">未納会費数</h2>
-                    <p class="text-5xl font-bold text-red-600 mt-4">12</p>
-                </div>
-                <div class="bg-white p-8 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-gray-700">最新回覧板投稿</h2>
-                    <p class="text-5xl font-bold text-green-600 mt-4">5</p>
-                </div>
-            </div>
+2. データベース構成
 
-            <!-- 最近の活動 -->
-            <div class="mt-12 bg-white p-8 rounded-lg shadow-lg">
-                <h2 class="text-3xl font-bold mb-4">最近の活動</h2>
-                <ul>
-                    <li class="border-b py-4 text-xl">新しい会員が登録されました（1時間前）</li>
-                    <li class="border-b py-4 text-xl">回覧板が投稿されました（3時間前）</li>
-                </ul>
-            </div>
+以下のような admin_invitations テーブルを作成し、招待情報を管理します。
 
-            <!-- タブ切り替え -->
-            <div class="mt-12 bg-white p-8 rounded-lg shadow-lg" x-data="{ tab: 'summary' }">
-                <div class="flex border-b">
-                    <button @click="tab = 'summary'" :class="tab === 'summary' ? 'text-blue-600 border-b-4 border-blue-600' : 'text-gray-700'" class="py-3 px-6 text-2xl">
-                        概要
-                    </button>
-                    <button @click="tab = 'details'" :class="tab === 'details' ? 'text-blue-600 border-b-4 border-blue-600' : 'text-gray-700'" class="py-3 px-6 text-2xl">
-                        詳細
-                    </button>
-                </div>
-                <div x-show="tab === 'summary'" class="mt-6 text-xl">
-                    <p>ここに概要の内容を表示します。</p>
-                </div>
-                <div x-show="tab === 'details'" class="mt-6 text-xl">
-                    <p>ここに詳細の内容を表示します。</p>
-                </div>
-            </div>
+Schema::create('admin_invitations', function (Blueprint $table) {
+    $table->id();
+    $table->string('email')->unique();
+    $table->string('token')->unique();
+    $table->boolean('used')->default(false);
+    $table->timestamps();
+});
 
-        </main>
+3. 招待の実装手順
+
+3.1 招待メール送信の実装
+
+コントローラーに招待処理を実装します。
+
+use App\Models\AdminInvitation;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+
+class AdminInvitationController extends Controller
+{
+    public function invite(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|unique:users,email|unique:admin_invitations,email',
+        ]);
+
+        $token = Str::random(32);
+
+        // 招待情報を保存
+        AdminInvitation::create([
+            'email' => $request->email,
+            'token' => $token,
+        ]);
+
+        // 招待メール送信
+        Mail::to($request->email)->send(new \App\Mail\AdminInvitationMail($token));
+
+        return response()->json(['message' => '招待メールを送信しました。']);
+    }
+}
+
+3.2 招待メールの内容
+
+app/Mail/AdminInvitationMail.php を作成。
+
+namespace App\Mail;
+
+use Illuminate\Mail\Mailable;
+
+class AdminInvitationMail extends Mailable
+{
+    public $token;
+
+    public function __construct($token)
+    {
+        $this->token = $token;
+    }
+
+    public function build()
+    {
+        return $this->subject('管理者アカウント招待')
+                    ->view('emails.admin_invitation')
+                    ->with([
+                        'url' => url('/register?token=' . $this->token),
+                    ]);
+    }
+}
+
+メールビュー（resources/views/emails/admin_invitation.blade.php）:
+
+<p>管理者アカウントの招待を受けました。</p>
+<p>以下のリンクから登録を完了してください。</p>
+<a href="{{ $url }}">登録リンク</a>
+
+4. 招待トークンを使用した登録処理
+
+AuthController に、招待されたユーザーがアカウントを作成する処理を追加します。
+
+use App\Models\AdminInvitation;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+
+class AuthController extends Controller
+{
+    public function showRegistrationForm(Request $request)
+    {
+        $token = $request->query('token');
+        $invitation = AdminInvitation::where('token', $token)->where('used', false)->first();
+
+        if (!$invitation) {
+            return redirect('/')->with('error', '招待リンクが無効です。');
+        }
+
+        return view('auth.register', ['email' => $invitation->email, 'token' => $token]);
+    }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|min:8|confirmed',
+            'token' => 'required|exists:admin_invitations,token',
+        ]);
+
+        $invitation = AdminInvitation::where('token', $request->token)->where('used', false)->first();
+
+        if (!$invitation) {
+            return redirect('/register')->with('error', '無効な招待リンクです。');
+        }
+
+        // ユーザー作成
+        User::create([
+            'email' => $invitation->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        // 招待を使用済みにする
+        $invitation->update(['used' => true]);
+
+        return redirect('/login')->with('success', '登録が完了しました。');
+    }
+}
+
+登録ページビュー（resources/views/auth/register.blade.php）:
+
+<form method="POST" action="{{ route('register') }}">
+    @csrf
+    <input type="hidden" name="token" value="{{ $token }}">
+    <div>
+        <label>Email:</label>
+        <input type="email" name="email" value="{{ $email }}" readonly>
     </div>
+    <div>
+        <label>パスワード:</label>
+        <input type="password" name="password">
+    </div>
+    <div>
+        <label>パスワード確認:</label>
+        <input type="password" name="password_confirmation">
+    </div>
+    <button type="submit">登録</button>
+</form>
 
-</body>
-</html>
+5. ルーティング設定
+
+routes/web.php に以下のルートを追加します。
+
+use App\Http\Controllers\AdminInvitationController;
+use App\Http\Controllers\AuthController;
+
+Route::middleware('auth')->group(function () {
+    Route::post('/invite', [AdminInvitationController::class, 'invite'])->name('invite');
+});
+
+Route::get('/register', [AuthController::class, 'showRegistrationForm'])->name('register.form');
+Route::post('/register', [AuthController::class, 'register'])->name('register');
+
+6. アクセス制御
+
+管理者画面へのアクセス制限を auth ミドルウェアで制御し、認証済みユーザーのみアクセスできるようにします。
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('admin.dashboard');
+    })->name('dashboard');
+});
+
+7. フロントエンド（管理者招待ボタンの追加）
+
+管理者用ダッシュボードに招待フォームを追加:
+
+<form action="{{ route('invite') }}" method="POST">
+    @csrf
+    <input type="email" name="email" placeholder="招待するメールアドレス">
+    <button type="submit">招待</button>
+</form>
+
+8. まとめ
+
+この実装により、管理者アカウント作成は以下の流れで進みます。
+	1.	既存管理者が新管理者を招待（メール送信）
+	2.	招待されたユーザーがリンクから登録ページにアクセス
+	3.	招待トークンを検証し、アカウントを作成
+	4.	招待状を使用済みにする
+
+これにより、セキュアかつ管理しやすい管理者招待フローが実現できます。
