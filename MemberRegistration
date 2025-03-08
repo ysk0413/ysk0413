@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Http\Controllers\API\V1;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use App\Models\Member;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
+
+class MemberRegistrationController extends Controller
+{
+    public function store(Request $request)
+    {
+        // バリデーションルールに id_token を追加
+        $validator = Validator::make($request->all(), [
+            'id_token'       => 'required|string',
+            'name'           => 'required|string|max:255',
+            'email'          => 'required|email|unique:members,email',
+            'association_id' => 'required|integer|exists:associations,id',
+            'block_id'       => 'required|integer|exists:blocks,id',
+            'postcode'       => 'required|string|max:20',
+            'prefecture'     => 'required|string|max:50',
+            'city'           => 'required|string|max:100',
+            'street'         => 'required|string|max:255',
+            'building'       => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+              'message' => 'Validation error',
+              'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        // id_token を取得
+        $id_token = $request->input('id_token');
+
+        // LINE API を利用して id_token を検証し、line_user_id を取得する
+        // ※ 実際は config/services.php に channel_id を設定している前提
+        $response = Http::get('https://api.line.me/oauth2/v2.1/verify', [
+            'id_token'  => $id_token,
+            'client_id' => config('services.line.channel_id'),
+        ]);
+
+        if (!$response->successful()) {
+            return response()->json(['message' => 'LINE token verification failed'], 400);
+        }
+
+        $lineData = $response->json();
+        if (!isset($lineData['sub'])) {
+            return response()->json(['message' => 'LINE token does not contain user ID'], 400);
+        }
+        $line_user_id = $lineData['sub'];
+
+        // バリデーション済みデータを取得し、id_token は不要なので除外
+        $data = $validator->validated();
+        unset($data['id_token']);
+        $data['line_user_id'] = $line_user_id;
+
+        // 新規会員を作成、初期状態は未承認
+        $member = Member::create($data);
+        $member->is_approved = false;
+        $member->save();
+
+        return response()->json([
+            'message' => 'Registration successful. Please wait for approval.',
+            'member'  => $member,
+        ], 201);
+    }
+}
