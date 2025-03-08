@@ -1,0 +1,20 @@
+import { createApp } from 'vue'
+import App from './App.vue'
+import router from './router'
+import { createPinia } from 'pinia'
+
+// PrimeVue の設定
+import PrimeVue from 'primevue/config'
+
+// 最新テーマとスタイルのインポート（例：lara-light-indigo）
+import 'primevue/resources/themes/lara-light-indigo/theme.css'  // 新しいテーマ
+import 'primevue/resources/primevue.min.css'                  // PrimeVue の基本スタイル
+import 'primeicons/primeicons.css'                            // アイコン
+import 'primeflex/primeflex.css'                              // PrimeFlex
+
+const app = createApp(App)
+app.use(createPinia())
+app.use(router)
+app.use(PrimeVue)
+
+app.mount('#app')
