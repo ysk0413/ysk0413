@@ -1,0 +1,5 @@
+npm install primeflex
+
+// main.js
+import 'primeflex/primeflex.css'
+
