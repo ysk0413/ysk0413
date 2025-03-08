@@ -1,0 +1,187 @@
+<template>
+  <form @submit.prevent="submitForm" class="p-fluid p-formgrid p-grid">
+    <!-- 名前 -->
+    <div class="p-field p-col-12">
+      <label for="name">名前</label>
+      <InputText id="name" v-model="form.name" required />
+    </div>
+
+    <!-- メールアドレス -->
+    <div class="p-field p-col-12">
+      <label for="email">メールアドレス</label>
+      <InputText id="email" v-model="form.email" type="email" required />
+    </div>
+
+    <!-- 組・班・街区（Block） -->
+    <div class="p-field p-col-12">
+      <label for="block">組・班・街区</label>
+      <Dropdown
+        id="block"
+        v-model="form.block_id"
+        :options="blockOptions"
+        optionLabel="label"
+        placeholder="選択してください"
+        required
+      />
+    </div>
+
+    <!-- 郵便番号＋検索 -->
+    <div class="p-field p-col-12 p-md-6">
+      <label for="postcode">郵便番号</label>
+      <div class="p-inputgroup">
+        <InputText id="postcode" v-model="form.postcode" required />
+        <Button label="検索" icon="pi pi-search" @click="searchPostcode" class="p-button-secondary" />
+      </div>
+    </div>
+
+    <!-- 都道府県 -->
+    <div class="p-field p-col-12 p-md-6">
+      <label for="prefecture">都道府県</label>
+      <Dropdown
+        id="prefecture"
+        v-model="form.prefecture"
+        :options="prefectureOptions"
+        optionLabel="label"
+        placeholder="選択してください"
+        required
+      />
+    </div>
+
+    <!-- 市区町村 -->
+    <div class="p-field p-col-12">
+      <label for="city">市区町村</label>
+      <InputText id="city" v-model="form.city" required />
+    </div>
+
+    <!-- 市区町村以降 -->
+    <div class="p-field p-col-12">
+      <label for="street">市区町村以降</label>
+      <InputText id="street" v-model="form.street" required />
+    </div>
+
+    <!-- 建物名 -->
+    <div class="p-field p-col-12">
+      <label for="building">建物名</label>
+      <InputText id="building" v-model="form.building" />
+    </div>
+
+    <!-- 登録ボタン -->
+    <div class="p-field p-col-12">
+      <Button label="登録する" icon="pi pi-check" type="submit" class="p-button-success" />
+    </div>
+
+    <!-- エラーメッセージ -->
+    <div v-if="error" class="p-col-12">
+      <small class="p-error">{{ error }}</small>
+    </div>
+  </form>
+</template>
+
+<script setup>
+import { reactive, ref, onMounted } from 'vue'
+import axios from 'axios'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../store/auth'
+import InputText from 'primevue/inputtext'
+import Dropdown from 'primevue/dropdown'
+import Button from 'primevue/button'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const form = reactive({
+  name: '',
+  email: '',
+  block_id: '',
+  postcode: '',
+  prefecture: '',
+  city: '',
+  street: '',
+  building: ''
+})
+const error = ref('')
+
+// ブロック（Block）の選択肢は API で取得（Blockモデルから association_id をキーに取得）
+const blockOptions = ref([])
+
+// 47都道府県の固定選択肢（必要に応じて全都道府県を定義）
+const prefectureOptions = [
+  { value: '北海道', label: '北海道' },
+  { value: '青森県', label: '青森県' },
+  // … 他の都道府県 …
+  { value: '沖縄県', label: '沖縄県' }
+]
+
+// Block 一覧を取得
+async function fetchBlocks() {
+  if (!authStore.association?.id) return
+  try {
+    const response = await axios.get('/api/v1/blocks', {
+      params: { association_id: authStore.association.id }
+    })
+    blockOptions.value = response.data.map(block => ({
+      value: block.id,
+      label: block.name
+    }))
+  } catch (err) {
+    console.error('ブロック取得エラー:', err)
+  }
+}
+
+onMounted(() => {
+  fetchBlocks()
+})
+
+// 郵便番号検索処理：ZIPCloud API を利用して住所を自動入力
+async function searchPostcode() {
+  if (!form.postcode) {
+    error.value = '郵便番号を入力してください'
+    return
+  }
+  try {
+    const response = await axios.get('https://zipcloud.ibsnet.co.jp/api/search', {
+      params: { zipcode: form.postcode }
+    })
+    const results = response.data.results
+    if (!results || results.length === 0) {
+      error.value = '住所が見つかりませんでした'
+      return
+    }
+    const addr = results[0]
+    form.prefecture = addr.address1
+    form.city = addr.address2
+    form.street = addr.address3
+  } catch (err) {
+    console.error('郵便番号検索エラー:', err)
+    error.value = '検索中にエラーが発生しました'
+  }
+}
+
+// 会員登録送信処理
+async function submitForm() {
+  error.value = ''
+  try {
+    const registrationData = {
+      association_id: authStore.association?.id,
+      line_user_id: authStore.lineUserId,
+      name: form.name,
+      email: form.email,
+      block_id: form.block_id,
+      postcode: form.postcode,
+      prefecture: form.prefecture,
+      city: form.city,
+      street: form.street,
+      building: form.building
+    }
+    await axios.post('/api/v1/members', registrationData)
+    router.push('/waiting-approval')
+  } catch (err) {
+    console.error('登録エラー:', err)
+    error.value = err.response?.data?.message || '登録に失敗しました。'
+  }
+}
+</script>
+
+<style scoped>
+/* PrimeVue のスタイルを活かすため、基本レイアウトは p-grid / p-field を利用 */
+</style>
